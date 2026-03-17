@@ -42,6 +42,32 @@ final class SuggestionEngine {
         self.settings = settings
     }
 
+    /// Returns the API key for the current LLM provider (nil for Ollama).
+    private var llmApiKey: String? {
+        switch settings.llmProvider {
+        case .openRouter: settings.openRouterApiKey
+        case .ollama: nil
+        }
+    }
+
+    /// Returns the base URL for the current LLM provider (nil uses the default OpenRouter URL).
+    private var llmBaseURL: URL? {
+        switch settings.llmProvider {
+        case .openRouter: return nil
+        case .ollama:
+            let base = settings.ollamaBaseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            return URL(string: base + "/v1/chat/completions")
+        }
+    }
+
+    /// Returns the model identifier for the current LLM provider.
+    private var llmModel: String {
+        switch settings.llmProvider {
+        case .openRouter: settings.selectedModel
+        case .ollama: settings.ollamaLLMModel
+        }
+    }
+
     /// Called when a new THEM utterance is finalized.
     func onThemUtterance(_ utterance: Utterance) {
         guard utterance.id != lastProcessedUtteranceID else { return }
@@ -50,8 +76,13 @@ final class SuggestionEngine {
         // Cancel any in-flight request
         currentTask?.cancel()
 
-        let apiKey = settings.openRouterApiKey
-        guard !apiKey.isEmpty else { return }
+        // Validate that the current provider has required credentials
+        switch settings.llmProvider {
+        case .openRouter:
+            guard !settings.openRouterApiKey.isEmpty else { return }
+        case .ollama:
+            break // No API key needed
+        }
 
         currentTask = Task {
             // Stage 1: Local heuristic pre-filter
@@ -65,8 +96,7 @@ final class SuggestionEngine {
 
             // Stage 2: Update conversation state if needed
             await updateConversationStateIfNeeded(
-                latestUtterance: utterance,
-                apiKey: apiKey
+                latestUtterance: utterance
             )
             guard !Task.isCancelled else { return }
 
@@ -81,8 +111,7 @@ final class SuggestionEngine {
             let decision = await runSurfacingGate(
                 utterance: utterance,
                 trigger: trigger!,
-                kbResults: kbResults,
-                apiKey: apiKey
+                kbResults: kbResults
             )
             lastDecision = decision
             guard !Task.isCancelled else { return }
@@ -95,8 +124,7 @@ final class SuggestionEngine {
                 utterance: utterance,
                 decision: decision,
                 trigger: trigger!,
-                kbResults: kbResults,
-                apiKey: apiKey
+                kbResults: kbResults
             )
             guard !Task.isCancelled else { return }
 
@@ -251,8 +279,7 @@ final class SuggestionEngine {
     // MARK: - Stage 2: Conversation State Update
 
     private func updateConversationStateIfNeeded(
-        latestUtterance: Utterance,
-        apiKey: String
+        latestUtterance: Utterance
     ) async {
         guard transcriptStore.needsStateUpdate else { return }
 
@@ -267,10 +294,11 @@ final class SuggestionEngine {
 
         do {
             let response = try await client.complete(
-                apiKey: apiKey,
-                model: settings.selectedModel,
+                apiKey: llmApiKey,
+                model: llmModel,
                 messages: statePrompt,
-                maxTokens: 512
+                maxTokens: 512,
+                baseURL: llmBaseURL
             )
 
             // Extract JSON from response (handle markdown fences)
@@ -330,8 +358,7 @@ final class SuggestionEngine {
     private func runSurfacingGate(
         utterance: Utterance,
         trigger: SuggestionTrigger,
-        kbResults: [KBResult],
-        apiKey: String
+        kbResults: [KBResult]
     ) async -> SuggestionDecision? {
         let messages = buildGatePrompt(
             utterance: utterance,
@@ -341,10 +368,11 @@ final class SuggestionEngine {
 
         do {
             let response = try await client.complete(
-                apiKey: apiKey,
-                model: settings.selectedModel,
+                apiKey: llmApiKey,
+                model: llmModel,
                 messages: messages,
-                maxTokens: 512
+                maxTokens: 512,
+                baseURL: llmBaseURL
             )
 
             let jsonString = extractJSON(from: response)
@@ -371,8 +399,7 @@ final class SuggestionEngine {
         utterance: Utterance,
         decision: SuggestionDecision,
         trigger: SuggestionTrigger,
-        kbResults: [KBResult],
-        apiKey: String
+        kbResults: [KBResult]
     ) async -> Suggestion? {
         let messages = buildGeneratorPrompt(
             utterance: utterance,
@@ -382,10 +409,11 @@ final class SuggestionEngine {
 
         do {
             let response = try await client.complete(
-                apiKey: apiKey,
-                model: settings.selectedModel,
+                apiKey: llmApiKey,
+                model: llmModel,
                 messages: messages,
-                maxTokens: 300
+                maxTokens: 300,
+                baseURL: llmBaseURL
             )
 
             let jsonString = extractJSON(from: response)

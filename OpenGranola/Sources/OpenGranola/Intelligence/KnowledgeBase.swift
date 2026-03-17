@@ -15,7 +15,7 @@ private struct KBCache: Codable {
     var entries: [String: [KBChunk]]
 }
 
-/// Embedding-based knowledge base search using Voyage AI.
+/// Embedding-based knowledge base search using Voyage AI or Ollama.
 @Observable
 @MainActor
 final class KnowledgeBase {
@@ -26,6 +26,10 @@ final class KnowledgeBase {
 
     private let settings: AppSettings
     private let voyageClient = VoyageClient()
+    private let ollamaEmbedClient = OllamaEmbedClient()
+
+    /// Tracks which embedding provider was used for the cached embeddings.
+    private var lastEmbeddingProvider: EmbeddingProvider?
 
     private nonisolated static func cacheURL() -> URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -39,11 +43,21 @@ final class KnowledgeBase {
     }
 
     func index(folderURL: URL) async {
-        let apiKey = settings.voyageApiKey
-        guard !apiKey.isEmpty else {
-            indexingProgress = "No Voyage AI API key"
-            return
+        let provider = settings.embeddingProvider
+
+        // Validate credentials based on provider
+        if provider == .voyageAI {
+            guard !settings.voyageApiKey.isEmpty else {
+                indexingProgress = "No Voyage AI API key"
+                return
+            }
         }
+
+        // Invalidate cache if embedding provider changed
+        if let lastProvider = lastEmbeddingProvider, lastProvider != provider {
+            clearCache()
+        }
+        lastEmbeddingProvider = provider
 
         indexingProgress = "Scanning files..."
         let fileURLs = collectFiles(in: folderURL)
@@ -85,7 +99,7 @@ final class KnowledgeBase {
 
             indexingProgress = "Embedding \(allTextsToEmbed.count) chunks..."
 
-            let result = await embedInBatches(apiKey: apiKey, texts: allTextsToEmbed)
+            let result = await embedInBatches(texts: allTextsToEmbed)
             let embeddings = result.embeddings
 
             if embeddings == nil, let errMsg = result.error {
@@ -152,8 +166,13 @@ final class KnowledgeBase {
 
     /// Multi-query search with score fusion. Deduplicates by chunk index, uses max score.
     func search(queries: [String], topK: Int = 5) async -> [KBResult] {
-        let apiKey = settings.voyageApiKey
-        guard isIndexed, !chunks.isEmpty, !apiKey.isEmpty else { return [] }
+        let provider = settings.embeddingProvider
+        guard isIndexed, !chunks.isEmpty else { return [] }
+
+        // Validate credentials for the active provider
+        if provider == .voyageAI {
+            guard !settings.voyageApiKey.isEmpty else { return [] }
+        }
 
         let validQueries = queries.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         guard !validQueries.isEmpty else { return [] }
@@ -161,11 +180,7 @@ final class KnowledgeBase {
         // Embed all queries at once
         let queryEmbeddings: [[Float]]
         do {
-            queryEmbeddings = try await voyageClient.embed(
-                apiKey: apiKey,
-                texts: validQueries,
-                inputType: "query"
-            )
+            queryEmbeddings = try await embedTexts(validQueries, inputType: "query")
         } catch {
             print("KB search embed error: \(error)")
             return []
@@ -188,36 +203,40 @@ final class KnowledgeBase {
 
         guard !topCandidates.isEmpty else { return [] }
 
-        // Rerank with Voyage using the first (primary) query
-        let candidateDocs = topCandidates.map { chunks[$0.index].text }
-        do {
-            let reranked = try await voyageClient.rerank(
-                apiKey: apiKey,
-                query: validQueries[0],
-                documents: candidateDocs,
-                topN: topK
+        // Rerank with Voyage (only when using Voyage AI provider)
+        if provider == .voyageAI {
+            let candidateDocs = topCandidates.map { chunks[$0.index].text }
+            do {
+                let reranked = try await voyageClient.rerank(
+                    apiKey: settings.voyageApiKey,
+                    query: validQueries[0],
+                    documents: candidateDocs,
+                    topN: topK
+                )
+                return reranked.map { result in
+                    let originalIdx = topCandidates[result.index].index
+                    let chunk = chunks[originalIdx]
+                    return KBResult(
+                        text: chunk.text,
+                        sourceFile: chunk.sourceFile,
+                        headerContext: chunk.headerContext,
+                        score: result.score
+                    )
+                }
+            } catch {
+                print("KB rerank error (falling back to cosine): \(error)")
+            }
+        }
+
+        // Cosine-similarity fallback (used by Ollama or when Voyage rerank fails)
+        return topCandidates.prefix(topK).map { candidate in
+            let chunk = chunks[candidate.index]
+            return KBResult(
+                text: chunk.text,
+                sourceFile: chunk.sourceFile,
+                headerContext: chunk.headerContext,
+                score: Double(candidate.score)
             )
-            return reranked.map { result in
-                let originalIdx = topCandidates[result.index].index
-                let chunk = chunks[originalIdx]
-                return KBResult(
-                    text: chunk.text,
-                    sourceFile: chunk.sourceFile,
-                    headerContext: chunk.headerContext,
-                    score: result.score
-                )
-            }
-        } catch {
-            print("KB rerank error (falling back to cosine): \(error)")
-            return topCandidates.prefix(topK).map { candidate in
-                let chunk = chunks[candidate.index]
-                return KBResult(
-                    text: chunk.text,
-                    sourceFile: chunk.sourceFile,
-                    headerContext: chunk.headerContext,
-                    score: Double(candidate.score)
-                )
-            }
         }
     }
 
@@ -377,9 +396,29 @@ final class KnowledgeBase {
         return result
     }
 
+    // MARK: - Embedding Dispatch
+
+    /// Embeds texts using the currently configured provider.
+    private func embedTexts(_ texts: [String], inputType: String) async throws -> [[Float]] {
+        switch settings.embeddingProvider {
+        case .voyageAI:
+            return try await voyageClient.embed(
+                apiKey: settings.voyageApiKey,
+                texts: texts,
+                inputType: inputType
+            )
+        case .ollama:
+            return try await ollamaEmbedClient.embed(
+                texts: texts,
+                baseURL: settings.ollamaBaseURL,
+                model: settings.ollamaEmbedModel
+            )
+        }
+    }
+
     // MARK: - Embedding Batches
 
-    private func embedInBatches(apiKey: String, texts: [String]) async -> (embeddings: [[Float]]?, error: String?) {
+    private func embedInBatches(texts: [String]) async -> (embeddings: [[Float]]?, error: String?) {
         let batchSize = 32
         var allEmbeddings: [[Float]] = []
 
@@ -392,11 +431,7 @@ final class KnowledgeBase {
             var retried = false
             while true {
                 do {
-                    let embeddings = try await voyageClient.embed(
-                        apiKey: apiKey,
-                        texts: batch,
-                        inputType: "document"
-                    )
+                    let embeddings = try await embedTexts(batch, inputType: "document")
                     allEmbeddings.append(contentsOf: embeddings)
                     break
                 } catch {
@@ -434,6 +469,10 @@ final class KnowledgeBase {
     }
 
     // MARK: - Cache
+
+    private nonisolated func clearCache() {
+        try? FileManager.default.removeItem(at: Self.cacheURL())
+    }
 
     private nonisolated func loadCache() -> KBCache {
         guard let data = try? Data(contentsOf: Self.cacheURL()),

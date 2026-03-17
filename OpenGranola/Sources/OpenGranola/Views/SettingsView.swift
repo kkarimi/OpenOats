@@ -23,17 +23,49 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Voyage AI") {
-                SecureField("API Key", text: $settings.voyageApiKey)
-                .font(.system(size: 12, design: .monospaced))
+            Section("LLM Provider") {
+                Picker("Provider", selection: $settings.llmProvider) {
+                    ForEach(LLMProvider.allCases) { provider in
+                        Text(provider.displayName).tag(provider)
+                    }
+                }
+                .font(.system(size: 12))
+
+                if settings.llmProvider == .openRouter {
+                    SecureField("API Key", text: $settings.openRouterApiKey)
+                        .font(.system(size: 12, design: .monospaced))
+
+                    TextField("Model", text: $settings.selectedModel, prompt: Text("e.g. google/gemini-3-flash-preview"))
+                        .font(.system(size: 12, design: .monospaced))
+                } else {
+                    TextField("Ollama URL", text: $settings.ollamaBaseURL, prompt: Text("http://localhost:11434"))
+                        .font(.system(size: 12, design: .monospaced))
+
+                    TextField("Model", text: $settings.ollamaLLMModel, prompt: Text("e.g. qwen3:8b"))
+                        .font(.system(size: 12, design: .monospaced))
+                }
             }
 
-            Section("OpenRouter API") {
-                SecureField("API Key", text: $settings.openRouterApiKey)
-                .font(.system(size: 12, design: .monospaced))
+            Section("Embedding Provider") {
+                Picker("Provider", selection: $settings.embeddingProvider) {
+                    ForEach(EmbeddingProvider.allCases) { provider in
+                        Text(provider.displayName).tag(provider)
+                    }
+                }
+                .font(.system(size: 12))
 
-                TextField("Model", text: $settings.selectedModel, prompt: Text("e.g. google/gemini-3-flash-preview"))
-                    .font(.system(size: 12, design: .monospaced))
+                if settings.embeddingProvider == .voyageAI {
+                    SecureField("API Key", text: $settings.voyageApiKey)
+                        .font(.system(size: 12, design: .monospaced))
+                } else {
+                    TextField("Embedding Model", text: $settings.ollamaEmbedModel, prompt: Text("e.g. nomic-embed-text"))
+                        .font(.system(size: 12, design: .monospaced))
+
+                    if settings.llmProvider != .ollama {
+                        TextField("Ollama URL", text: $settings.ollamaBaseURL, prompt: Text("http://localhost:11434"))
+                            .font(.system(size: 12, design: .monospaced))
+                    }
+                }
             }
 
             Section("Audio Input") {
@@ -60,7 +92,7 @@ struct SettingsView: View {
             }
 }
         .formStyle(.grouped)
-        .frame(width: 450, height: 400)
+        .frame(width: 450, height: 550)
         .onAppear {
             inputDevices = MicCapture.availableInputDevices()
         }

@@ -1,8 +1,8 @@
 import Foundation
 
-/// Streaming OpenAI-compatible client for OpenRouter API.
+/// Streaming OpenAI-compatible client for OpenRouter API (and Ollama via OpenAI-compatible endpoint).
 actor OpenRouterClient {
-    private let baseURL = URL(string: "https://openrouter.ai/api/v1/chat/completions")!
+    private static let defaultBaseURL = URL(string: "https://openrouter.ai/api/v1/chat/completions")!
 
     struct Message: Codable, Sendable {
         let role: String
@@ -18,10 +18,11 @@ actor OpenRouterClient {
 
     /// Streams the completion response, yielding text chunks.
     func streamCompletion(
-        apiKey: String,
+        apiKey: String? = nil,
         model: String,
         messages: [Message],
-        maxTokens: Int = 1024
+        maxTokens: Int = 1024,
+        baseURL: URL? = nil
     ) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
@@ -33,11 +34,16 @@ actor OpenRouterClient {
                         max_tokens: maxTokens
                     )
 
-                    var urlRequest = URLRequest(url: baseURL)
+                    let targetURL = baseURL ?? Self.defaultBaseURL
+                    var urlRequest = URLRequest(url: targetURL)
                     urlRequest.httpMethod = "POST"
                     urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                    urlRequest.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-                    urlRequest.setValue("OpenGranola/2.0", forHTTPHeaderField: "HTTP-Referer")
+                    if let apiKey, !apiKey.isEmpty {
+                        urlRequest.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+                    }
+                    if targetURL.host?.contains("openrouter.ai") == true {
+                        urlRequest.setValue("OpenGranola/2.0", forHTTPHeaderField: "HTTP-Referer")
+                    }
                     urlRequest.httpBody = try JSONEncoder().encode(request)
 
                     let (bytes, response) = try await URLSession.shared.bytes(for: urlRequest)
@@ -75,10 +81,11 @@ actor OpenRouterClient {
 
     /// Non-streaming completion for structured JSON tasks (gate decisions, state updates).
     func complete(
-        apiKey: String,
+        apiKey: String? = nil,
         model: String,
         messages: [Message],
-        maxTokens: Int = 512
+        maxTokens: Int = 512,
+        baseURL: URL? = nil
     ) async throws -> String {
         let request = ChatRequest(
             model: model,
@@ -87,11 +94,16 @@ actor OpenRouterClient {
             max_tokens: maxTokens
         )
 
-        var urlRequest = URLRequest(url: baseURL)
+        let targetURL = baseURL ?? Self.defaultBaseURL
+        var urlRequest = URLRequest(url: targetURL)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        urlRequest.setValue("OpenGranola/2.0", forHTTPHeaderField: "HTTP-Referer")
+        if let apiKey, !apiKey.isEmpty {
+            urlRequest.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
+        if targetURL.host?.contains("openrouter.ai") == true {
+            urlRequest.setValue("OpenGranola/2.0", forHTTPHeaderField: "HTTP-Referer")
+        }
         urlRequest.httpBody = try JSONEncoder().encode(request)
 
         let (data, response) = try await URLSession.shared.data(for: urlRequest)

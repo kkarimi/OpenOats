@@ -4,6 +4,34 @@ import Observation
 import Security
 import CoreAudio
 
+enum LLMProvider: String, CaseIterable, Identifiable {
+    case openRouter
+    case ollama
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .openRouter: "OpenRouter"
+        case .ollama: "Ollama"
+        }
+    }
+}
+
+enum EmbeddingProvider: String, CaseIterable, Identifiable {
+    case voyageAI
+    case ollama
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .voyageAI: "Voyage AI"
+        case .ollama: "Ollama"
+        }
+    }
+}
+
 @Observable
 @MainActor
 final class AppSettings {
@@ -32,6 +60,26 @@ final class AppSettings {
         didSet { KeychainHelper.save(key: "voyageApiKey", value: voyageApiKey) }
     }
 
+    var llmProvider: LLMProvider {
+        didSet { UserDefaults.standard.set(llmProvider.rawValue, forKey: "llmProvider") }
+    }
+
+    var embeddingProvider: EmbeddingProvider {
+        didSet { UserDefaults.standard.set(embeddingProvider.rawValue, forKey: "embeddingProvider") }
+    }
+
+    var ollamaBaseURL: String {
+        didSet { UserDefaults.standard.set(ollamaBaseURL, forKey: "ollamaBaseURL") }
+    }
+
+    var ollamaLLMModel: String {
+        didSet { UserDefaults.standard.set(ollamaLLMModel, forKey: "ollamaLLMModel") }
+    }
+
+    var ollamaEmbedModel: String {
+        didSet { UserDefaults.standard.set(ollamaEmbedModel, forKey: "ollamaEmbedModel") }
+    }
+
     /// When true, all app windows are invisible to screen sharing / recording.
     var hideFromScreenShare: Bool {
         didSet {
@@ -48,6 +96,11 @@ final class AppSettings {
         self.inputDeviceID = AudioDeviceID(defaults.integer(forKey: "inputDeviceID"))
         self.openRouterApiKey = KeychainHelper.load(key: "openRouterApiKey") ?? ""
         self.voyageApiKey = KeychainHelper.load(key: "voyageApiKey") ?? ""
+        self.llmProvider = LLMProvider(rawValue: defaults.string(forKey: "llmProvider") ?? "") ?? .openRouter
+        self.embeddingProvider = EmbeddingProvider(rawValue: defaults.string(forKey: "embeddingProvider") ?? "") ?? .voyageAI
+        self.ollamaBaseURL = defaults.string(forKey: "ollamaBaseURL") ?? "http://localhost:11434"
+        self.ollamaLLMModel = defaults.string(forKey: "ollamaLLMModel") ?? "qwen3:8b"
+        self.ollamaEmbedModel = defaults.string(forKey: "ollamaEmbedModel") ?? "nomic-embed-text"
         // Default to true (hidden) if key has never been set
         if defaults.object(forKey: "hideFromScreenShare") == nil {
             self.hideFromScreenShare = true
