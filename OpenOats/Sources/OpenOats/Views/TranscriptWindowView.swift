@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct TranscriptWindowView: View {
+    @Environment(AppCoordinator.self) private var coordinator
     @Environment(TranscriptStore.self) private var store
 
     var body: some View {
@@ -30,7 +31,10 @@ struct TranscriptWindowView: View {
                 utterances: store.utterances,
                 volatileYouText: store.volatileYouText,
                 volatileThemText: store.volatileThemText,
-                showSearch: true
+                showSearch: true,
+                isRunning: coordinator.transcriptionEngine?.isRunning == true,
+                usesChunkedTranscription: coordinator.transcriptionEngine?.currentTranscriptionModel().isCloud ?? false,
+                transcriptionModelName: coordinator.transcriptionEngine?.currentTranscriptionModel().displayName ?? ""
             )
         }
         .frame(minWidth: 400, minHeight: 500)

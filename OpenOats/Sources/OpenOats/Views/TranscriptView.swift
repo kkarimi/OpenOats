@@ -1,10 +1,19 @@
 import SwiftUI
 
 struct TranscriptView: View {
+    struct EmptyState: Equatable {
+        let title: String
+        let detail: String
+        let showsProgress: Bool
+    }
+
     let utterances: [Utterance]
     let volatileYouText: String
     let volatileThemText: String
     var showSearch: Bool = false
+    var isRunning: Bool = false
+    var usesChunkedTranscription: Bool = false
+    var transcriptionModelName: String = ""
 
     @State private var searchText = ""
     @State private var autoScrollEnabled = true
@@ -18,6 +27,21 @@ struct TranscriptView: View {
 
     private var isSearching: Bool {
         showSearch && !searchText.isEmpty
+    }
+
+    private var hasVolatileTranscript: Bool {
+        !volatileYouText.isEmpty || !volatileThemText.isEmpty
+    }
+
+    private var emptyState: EmptyState? {
+        Self.emptyState(
+            hasTranscript: !utterances.isEmpty,
+            hasVolatileTranscript: hasVolatileTranscript,
+            isSearching: isSearching,
+            isRunning: isRunning,
+            usesChunkedTranscription: usesChunkedTranscription,
+            transcriptionModelName: transcriptionModelName
+        )
     }
 
     var body: some View {
@@ -77,6 +101,10 @@ struct TranscriptView: View {
                         .font(.system(size: 12))
                         .foregroundStyle(.tertiary)
                         .frame(maxWidth: .infinity, minHeight: 60)
+                } else if visible.isEmpty && !hasVolatileTranscript, let emptyState {
+                    TranscriptEmptyStateView(emptyState: emptyState)
+                        .padding(16)
+                        .frame(maxWidth: .infinity, minHeight: 120)
                 } else {
                     LazyVStack(alignment: .leading, spacing: 8) {
                         ForEach(0..<visible.count, id: \.self) { index in
@@ -154,6 +182,40 @@ struct TranscriptView: View {
         let previous = Calendar.current.dateComponents([.hour, .minute], from: visible[index - 1].timestamp)
         return current.hour != previous.hour || current.minute != previous.minute
     }
+
+    nonisolated static func emptyState(
+        hasTranscript: Bool,
+        hasVolatileTranscript: Bool,
+        isSearching: Bool,
+        isRunning: Bool,
+        usesChunkedTranscription: Bool,
+        transcriptionModelName: String
+    ) -> EmptyState? {
+        guard !hasTranscript, !hasVolatileTranscript, !isSearching else { return nil }
+
+        if isRunning {
+            if usesChunkedTranscription {
+                let modelName = transcriptionModelName.isEmpty ? "This transcription model" : transcriptionModelName
+                return EmptyState(
+                    title: "Waiting for first transcript chunk",
+                    detail: "\(modelName) sends transcript updates after a short pause in speech.",
+                    showsProgress: true
+                )
+            }
+
+            return EmptyState(
+                title: "Listening for speech",
+                detail: "The live transcript will appear here as speech is detected.",
+                showsProgress: true
+            )
+        }
+
+        return EmptyState(
+            title: "Transcript will appear here",
+            detail: "Start recording to see live speech transcribed during your meeting.",
+            showsProgress: false
+        )
+    }
 }
 
 // MARK: - Timestamp Formatter
@@ -218,6 +280,36 @@ private struct VolatileIndicator: View {
             }
         }
         .opacity(0.6)
+    }
+}
+
+private struct TranscriptEmptyStateView: View {
+    let emptyState: TranscriptView.EmptyState
+
+    var body: some View {
+        VStack(spacing: 10) {
+            if emptyState.showsProgress {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Image(systemName: "quote.bubble")
+                    .font(.system(size: 18))
+                    .foregroundStyle(.tertiary)
+            }
+
+            VStack(spacing: 4) {
+                Text(emptyState.title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                Text(emptyState.detail)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 280)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

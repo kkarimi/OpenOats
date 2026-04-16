@@ -553,13 +553,17 @@ private struct ScratchpadSection: View {
 // MARK: - Isolated View Wrappers
 
 private struct IsolatedTranscriptWrapper: View {
+    @Environment(AppCoordinator.self) private var coordinator
     let state: LiveSessionState
     
     var body: some View {
         TranscriptView(
             utterances: state.liveTranscript,
             volatileYouText: state.volatileYouText,
-            volatileThemText: state.volatileThemText
+            volatileThemText: state.volatileThemText,
+            isRunning: state.isRunning,
+            usesChunkedTranscription: coordinator.transcriptionEngine?.currentTranscriptionModel().isCloud ?? false,
+            transcriptionModelName: coordinator.transcriptionEngine?.currentTranscriptionModel().displayName ?? ""
         )
     }
 }
