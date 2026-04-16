@@ -5,7 +5,7 @@ struct NotesView: View {
     @Bindable var settings: AppSettings
     @Environment(AppCoordinator.self) private var coordinator
     @State private var notesController: NotesController?
-    @State private var renamingSession: SessionIndex?
+    @State private var renamingSessionID: String?
     @State private var renameText: String = ""
     @FocusState private var renameFieldFocused: Bool
     @State private var sessionToDelete: String?
@@ -73,8 +73,15 @@ struct NotesView: View {
                 detailViewMode = .notes
             }
         }
-        .sheet(item: $renamingSession) { session in
-            renameSessionSheet(controller: controller, session: session)
+        .sheet(
+            isPresented: Binding(
+                get: { renamingSessionID != nil },
+                set: { if !$0 { cancelRename() } }
+            )
+        ) {
+            if let sessionID = renamingSessionID {
+                renameSessionSheet(controller: controller, sessionID: sessionID)
+            }
         }
     }
 
@@ -193,7 +200,7 @@ struct NotesView: View {
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
-                Text(renamePlaceholder(for: session))
+                Text(sessionTitle(for: session))
                     .font(.system(size: 13, weight: .medium))
                     .lineLimit(1)
                     .accessibilityIdentifier("notes.sessionTitle.\(session.id)")
@@ -239,12 +246,12 @@ struct NotesView: View {
     }
 
     @ViewBuilder
-    private func renameSessionSheet(controller: NotesController, session: SessionIndex) -> some View {
+    private func renameSessionSheet(controller: NotesController, sessionID: String) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Rename Meeting")
                 .font(.headline)
 
-            TextField(renamePlaceholder(for: session), text: $renameText)
+            TextField(renamePlaceholder(for: sessionID, controller: controller), text: $renameText)
                 .textFieldStyle(.roundedBorder)
                 .focused($renameFieldFocused)
                 .accessibilityIdentifier("notes.renameSheet.field")
@@ -252,7 +259,7 @@ struct NotesView: View {
                     renameFieldFocused = true
                 }
                 .onSubmit {
-                    commitRename(controller: controller, sessionID: session.id)
+                    commitRename(controller: controller, sessionID: sessionID)
                 }
 
             HStack {
@@ -263,7 +270,7 @@ struct NotesView: View {
                 .keyboardShortcut(.cancelAction)
 
                 Button("Rename") {
-                    commitRename(controller: controller, sessionID: session.id)
+                    commitRename(controller: controller, sessionID: sessionID)
                 }
                 .keyboardShortcut(.defaultAction)
                 .accessibilityIdentifier("notes.renameSheet.saveButton")
@@ -276,8 +283,7 @@ struct NotesView: View {
 
     private func beginRenaming(_ session: SessionIndex) {
         renameText = session.title ?? ""
-        renamingSession = session
-        renameFieldFocused = true
+        renamingSessionID = session.id
     }
 
     private func commitRename(controller: NotesController, sessionID: String) {
@@ -287,16 +293,22 @@ struct NotesView: View {
     }
 
     private func cancelRename() {
-        renamingSession = nil
+        renamingSessionID = nil
         renameFieldFocused = false
         renameText = ""
     }
 
-    private func renamePlaceholder(for session: SessionIndex) -> String {
-        if let title = session.title, !title.isEmpty {
-            return title
-        }
-        return "Untitled"
+    private func sessionTitle(for session: SessionIndex) -> String {
+        let title = session.title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (title?.isEmpty == false ? title : nil) ?? "Untitled"
+    }
+
+    private func renamePlaceholder(for sessionID: String, controller: NotesController) -> String {
+        let title = controller.state.sessionHistory
+            .first(where: { $0.id == sessionID })?
+            .title?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (title?.isEmpty == false ? title : nil) ?? "Untitled"
     }
 
     // MARK: - Tag Filter Bar
