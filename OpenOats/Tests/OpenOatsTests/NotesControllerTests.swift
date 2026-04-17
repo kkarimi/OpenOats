@@ -370,7 +370,7 @@ final class NotesControllerTests: XCTestCase {
         XCTAssertFalse(tags.contains(where: { $0.hasPrefix("granola:") }))
     }
 
-    func testSessionSourceGroupsKeepGranolaSeparateFromOpenOats() async {
+    func testImportedSourceGroupsKeepGranolaSeparateFromOpenOats() async {
         let (root, _) = makeTempDirs()
         let (controller, coordinator) = makeController(root: root)
 
@@ -385,11 +385,23 @@ final class NotesControllerTests: XCTestCase {
 
         await controller.loadHistory()
 
-        let groups = controller.sessionSourceGroups
+        let groups = controller.importedSourceGroups
 
-        XCTAssertEqual(groups.map(\.title), ["OpenOats", "Granola"])
-        XCTAssertEqual(groups.first?.sessions.map(\.id), ["session_local"])
-        XCTAssertEqual(groups.last?.sessions.map(\.id), ["session_granola"])
-        XCTAssertTrue(controller.showsSourceSections)
+        XCTAssertEqual(controller.primarySessions.map(\.id), ["session_local"])
+        XCTAssertEqual(groups.map(\.title), ["Granola"])
+        XCTAssertEqual(groups.first?.sessions.map(\.id), ["session_granola"])
+        XCTAssertTrue(controller.showsImportedSourceSections)
+    }
+
+    func testImportedSourceGroupsAreHiddenForOpenOatsOnlySessions() async {
+        let (root, _) = makeTempDirs()
+        let (controller, coordinator) = makeController(root: root)
+
+        await seedSession(coordinator: coordinator, sessionID: "session_local", title: "Local")
+        await controller.loadHistory()
+
+        XCTAssertEqual(controller.primarySessions.map(\.id), ["session_local"])
+        XCTAssertTrue(controller.importedSourceGroups.isEmpty)
+        XCTAssertFalse(controller.showsImportedSourceSections)
     }
 }

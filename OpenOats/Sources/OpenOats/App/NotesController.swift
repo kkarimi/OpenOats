@@ -412,8 +412,13 @@ final class NotesController {
         }
     }
 
-    var sessionSourceGroups: [SessionSourceGroup] {
-        let grouped = Dictionary(grouping: filteredSessions, by: Self.sourceGroupKey(for:))
+    var primarySessions: [SessionIndex] {
+        filteredSessions.filter { Self.sourceGroupKey(for: $0) == "openoats" }
+    }
+
+    var importedSourceGroups: [SessionSourceGroup] {
+        let importedSessions = filteredSessions.filter { Self.sourceGroupKey(for: $0) != "openoats" }
+        let grouped = Dictionary(grouping: importedSessions, by: Self.sourceGroupKey(for:))
         let orderedKeys = grouped.keys.sorted { lhs, rhs in
             let lhsOrder = Self.sourceGroupSortOrder(for: lhs)
             let rhsOrder = Self.sourceGroupSortOrder(for: rhs)
@@ -431,10 +436,8 @@ final class NotesController {
         }
     }
 
-    var showsSourceSections: Bool {
-        let groups = sessionSourceGroups
-        guard !groups.isEmpty else { return false }
-        return groups.count > 1 || groups.first?.id != "openoats"
+    var showsImportedSourceSections: Bool {
+        !importedSourceGroups.isEmpty
     }
 
     func updateSessionTags(sessionID: String, tags: [String]) {

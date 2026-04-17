@@ -125,17 +125,16 @@ struct NotesView: View {
 
             if bulkDeleteMode {
                 List(selection: $bulkDeleteSelection) {
-                    if controller.showsSourceSections {
-                        ForEach(controller.sessionSourceGroups) { group in
+                    ForEach(controller.primarySessions) { session in
+                        sessionRow(controller: controller, session: session)
+                    }
+                    if controller.showsImportedSourceSections {
+                        ForEach(controller.importedSourceGroups) { group in
                             Section(group.title) {
                                 ForEach(group.sessions) { session in
                                     sessionRow(controller: controller, session: session)
                                 }
                             }
-                        }
-                    } else {
-                        ForEach(controller.filteredSessions) { session in
-                            sessionRow(controller: controller, session: session)
                         }
                     }
                 }
@@ -146,75 +145,16 @@ struct NotesView: View {
                     set: { controller.selectSession($0) }
                 )
                 List(selection: selectedBinding) {
-                    if controller.showsSourceSections {
-                        ForEach(controller.sessionSourceGroups) { group in
+                    ForEach(controller.primarySessions) { session in
+                        interactiveSessionRow(controller: controller, session: session)
+                    }
+                    if controller.showsImportedSourceSections {
+                        ForEach(controller.importedSourceGroups) { group in
                             Section(group.title) {
                                 ForEach(group.sessions) { session in
-                                    sessionRow(controller: controller, session: session)
-                                        .contextMenu {
-                                            Button("Rename...") {
-                                                beginRenaming(session)
-                                            }
-                                            Button("Edit Tags...") {
-                                                editingTags = NotesController.visibleTags(for: session)
-                                                newTagText = ""
-                                                editingTagsSessionID = session.id
-                                                Task {
-                                                    availableTags = await controller.allTags()
-                                                }
-                                            }
-                                            Divider()
-                                            Button("Select Multiple...") {
-                                                bulkDeleteMode = true
-                                                bulkDeleteSelection = [session.id]
-                                            }
-                                            Divider()
-                                            Button("Delete", role: .destructive) {
-                                                sessionToDelete = session.id
-                                                showDeleteConfirmation = true
-                                            }
-                                        }
-                                        .popover(isPresented: Binding(
-                                            get: { editingTagsSessionID == session.id },
-                                            set: { if !$0 { editingTagsSessionID = nil } }
-                                        )) {
-                                            tagEditorPopover(controller: controller, sessionID: session.id)
-                                        }
+                                    interactiveSessionRow(controller: controller, session: session)
                                 }
                             }
-                        }
-                    } else {
-                        ForEach(controller.filteredSessions) { session in
-                            sessionRow(controller: controller, session: session)
-                                .contextMenu {
-                                    Button("Rename...") {
-                                        beginRenaming(session)
-                                    }
-                                    Button("Edit Tags...") {
-                                        editingTags = NotesController.visibleTags(for: session)
-                                        newTagText = ""
-                                        editingTagsSessionID = session.id
-                                        Task {
-                                            availableTags = await controller.allTags()
-                                        }
-                                    }
-                                    Divider()
-                                    Button("Select Multiple...") {
-                                        bulkDeleteMode = true
-                                        bulkDeleteSelection = [session.id]
-                                    }
-                                    Divider()
-                                    Button("Delete", role: .destructive) {
-                                        sessionToDelete = session.id
-                                        showDeleteConfirmation = true
-                                    }
-                                }
-                                .popover(isPresented: Binding(
-                                    get: { editingTagsSessionID == session.id },
-                                    set: { if !$0 { editingTagsSessionID = nil } }
-                                )) {
-                                    tagEditorPopover(controller: controller, sessionID: session.id)
-                                }
                         }
                     }
                 }
@@ -297,6 +237,40 @@ struct NotesView: View {
         }
         .padding(.vertical, 2)
         .accessibilityIdentifier("notes.session.\(session.id)")
+    }
+
+    @ViewBuilder
+    private func interactiveSessionRow(controller: NotesController, session: SessionIndex) -> some View {
+        sessionRow(controller: controller, session: session)
+            .contextMenu {
+                Button("Rename...") {
+                    beginRenaming(session)
+                }
+                Button("Edit Tags...") {
+                    editingTags = NotesController.visibleTags(for: session)
+                    newTagText = ""
+                    editingTagsSessionID = session.id
+                    Task {
+                        availableTags = await controller.allTags()
+                    }
+                }
+                Divider()
+                Button("Select Multiple...") {
+                    bulkDeleteMode = true
+                    bulkDeleteSelection = [session.id]
+                }
+                Divider()
+                Button("Delete", role: .destructive) {
+                    sessionToDelete = session.id
+                    showDeleteConfirmation = true
+                }
+            }
+            .popover(isPresented: Binding(
+                get: { editingTagsSessionID == session.id },
+                set: { if !$0 { editingTagsSessionID = nil } }
+            )) {
+                tagEditorPopover(controller: controller, sessionID: session.id)
+            }
     }
 
     @ViewBuilder
