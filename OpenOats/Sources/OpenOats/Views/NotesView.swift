@@ -140,8 +140,14 @@ struct NotesView: View {
             if bulkDeleteMode {
                 List(selection: $bulkDeleteSelection) {
                     if controller.showsFolderSections {
-                        ForEach(controller.rootFolderSessions) { session in
-                            sessionRow(controller: controller, session: session)
+                        if !controller.rootFolderSessions.isEmpty {
+                            Section {
+                                ForEach(controller.rootFolderSessions) { session in
+                                    sessionRow(controller: controller, session: session)
+                                }
+                            } header: {
+                                rootFolderSectionHeader()
+                            }
                         }
                         ForEach(controller.folderGroups) { group in
                             Section {
@@ -174,8 +180,14 @@ struct NotesView: View {
                 )
                 List(selection: selectedBinding) {
                     if controller.showsFolderSections {
-                        ForEach(controller.rootFolderSessions) { session in
-                            sessionListEntry(controller: controller, session: session)
+                        if !controller.rootFolderSessions.isEmpty {
+                            Section {
+                                ForEach(controller.rootFolderSessions) { session in
+                                    sessionListEntry(controller: controller, session: session)
+                                }
+                            } header: {
+                                rootFolderSectionHeader()
+                            }
                         }
                         ForEach(controller.folderGroups) { group in
                             Section {
@@ -555,6 +567,16 @@ struct NotesView: View {
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(folderColor(for: group.id))
             Text(group.title)
+        }
+    }
+
+    @ViewBuilder
+    private func rootFolderSectionHeader() -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "folder")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+            Text("My notes")
         }
     }
 
