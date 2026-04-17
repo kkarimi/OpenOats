@@ -99,14 +99,19 @@ final class NotesEngine {
             model = settings.openAILLMModel
         }
 
+        let includeCalendarContext = Self.shouldIncludeCalendarContext(
+            provider: settings.llmProvider,
+            baseURL: baseURL,
+            allowCloudCalendarContext: settings.shareCalendarContextWithCloudNotes
+        )
         let userContent = Self.buildUserContent(
             transcript: transcript,
-            calendarEvent: calendarEvent,
+            calendarEvent: includeCalendarContext ? calendarEvent : nil,
             scratchpad: scratchpad
         )
         let systemPrompt = Self.resolvedSystemPrompt(
             from: template,
-            calendarEvent: calendarEvent
+            calendarEvent: includeCalendarContext ? calendarEvent : nil
         )
         let messages: [OpenRouterClient.Message] = [
             .init(role: "system", content: systemPrompt),
@@ -182,6 +187,24 @@ final class NotesEngine {
 
         sections.append("Generate the meeting notes in markdown:")
         return sections.joined(separator: "\n\n")
+    }
+
+    nonisolated static func shouldIncludeCalendarContext(
+        provider: LLMProvider,
+        baseURL: URL?,
+        allowCloudCalendarContext: Bool
+    ) -> Bool {
+        switch provider {
+        case .ollama, .mlx:
+            return true
+        case .openRouter:
+            return allowCloudCalendarContext
+        case .openAICompatible:
+            if let baseURL, OpenRouterClient.isLocalHost(baseURL) {
+                return true
+            }
+            return allowCloudCalendarContext
+        }
     }
 
     nonisolated static func resolvedSystemPrompt(

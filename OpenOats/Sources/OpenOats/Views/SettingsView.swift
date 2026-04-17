@@ -179,11 +179,18 @@ private struct GeneralSettingsTab: View {
                     Toggle("Use calendar context for meetings", isOn: $settings.calendarIntegrationEnabled)
                         .font(.system(size: 12))
 
-                    Text("When enabled, OpenOats looks up your calendar for a matching event and uses it to title sessions and improve meeting notes. Calendar access is requested only when you enable this. With cloud note generation, matching event titles and participant names may be sent as text context.")
+                    Text("When enabled, OpenOats looks up your calendar for a matching event and uses it to title sessions, show local meeting context, and improve local notes. Calendar access is requested only when you enable this.")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
 
                     if settings.calendarIntegrationEnabled {
+                        Toggle("Include calendar context in cloud-generated notes", isOn: $settings.shareCalendarContextWithCloudNotes)
+                            .font(.system(size: 12))
+
+                        Text("When enabled, matching event titles, organizers, and invited participant names may be sent as text context to remote note providers. This does not apply to local providers like Ollama, MLX, or localhost OpenAI-compatible endpoints.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+
                         CalendarStatusView()
                     }
                 }

@@ -69,4 +69,65 @@ final class NotesEngineTests: XCTestCase {
         XCTAssertTrue(resolved.contains("## Meeting Context"))
         XCTAssertTrue(resolved.contains("invited participants"))
     }
+
+    func testCloudProvidersRequireExplicitCalendarOptIn() {
+        XCTAssertFalse(
+            NotesEngine.shouldIncludeCalendarContext(
+                provider: .openRouter,
+                baseURL: nil,
+                allowCloudCalendarContext: false
+            )
+        )
+        XCTAssertTrue(
+            NotesEngine.shouldIncludeCalendarContext(
+                provider: .openRouter,
+                baseURL: nil,
+                allowCloudCalendarContext: true
+            )
+        )
+    }
+
+    func testLocalProvidersAlwaysAllowCalendarContext() {
+        XCTAssertTrue(
+            NotesEngine.shouldIncludeCalendarContext(
+                provider: .ollama,
+                baseURL: URL(string: "http://localhost:11434/v1/chat/completions"),
+                allowCloudCalendarContext: false
+            )
+        )
+        XCTAssertTrue(
+            NotesEngine.shouldIncludeCalendarContext(
+                provider: .mlx,
+                baseURL: URL(string: "http://localhost:8080/v1/chat/completions"),
+                allowCloudCalendarContext: false
+            )
+        )
+    }
+
+    func testOpenAICompatibleLocalhostDoesNotRequireCalendarOptIn() {
+        XCTAssertTrue(
+            NotesEngine.shouldIncludeCalendarContext(
+                provider: .openAICompatible,
+                baseURL: URL(string: "http://localhost:4000/v1/chat/completions"),
+                allowCloudCalendarContext: false
+            )
+        )
+    }
+
+    func testOpenAICompatibleRemoteEndpointRequiresCalendarOptIn() {
+        XCTAssertFalse(
+            NotesEngine.shouldIncludeCalendarContext(
+                provider: .openAICompatible,
+                baseURL: URL(string: "https://api.example.com/v1/chat/completions"),
+                allowCloudCalendarContext: false
+            )
+        )
+        XCTAssertTrue(
+            NotesEngine.shouldIncludeCalendarContext(
+                provider: .openAICompatible,
+                baseURL: URL(string: "https://api.example.com/v1/chat/completions"),
+                allowCloudCalendarContext: true
+            )
+        )
+    }
 }
