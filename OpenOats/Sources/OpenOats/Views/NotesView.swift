@@ -1147,7 +1147,7 @@ struct NotesView: View {
                 Label("Clean Up", systemImage: "sparkles")
                     .font(.system(size: 12))
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(OpenOatsProminentButtonStyle())
             .disabled(state.loadedTranscript.isEmpty)
             .help("Remove filler words and fix punctuation")
 
@@ -1173,7 +1173,7 @@ struct NotesView: View {
                 Label("Clean Up", systemImage: "sparkles")
                     .font(.system(size: 12))
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(OpenOatsProminentButtonStyle())
             .help("Clean up remaining utterances")
 
             showOriginalButton(controller: controller, state: state)
@@ -1379,7 +1379,7 @@ struct NotesView: View {
                 } label: {
                     Label("Generate Notes", systemImage: "sparkles")
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(OpenOatsProminentButtonStyle())
                 .disabled(state.loadedTranscript.isEmpty || controller.isAnyGenerationInProgress)
                 .accessibilityIdentifier("notes.generateButton")
 
