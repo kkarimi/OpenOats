@@ -183,6 +183,34 @@ final class NotesControllerTests: XCTestCase {
         XCTAssertTrue(savedNotes?.markdown.contains("Test Notes") ?? false)
     }
 
+    func testGenerateNotesUsesPreselectedTemplateForFirstGeneration() async {
+        let (root, notes) = makeTempDirs()
+        let (controller, coordinator) = makeController(root: root)
+        let settings = makeSettings(notesDirectory: notes)
+        let sessionID = "session_test_preselected_template"
+
+        await seedSession(coordinator: coordinator, sessionID: sessionID)
+        controller.selectSession(sessionID)
+        try? await Task.sleep(for: .milliseconds(200))
+
+        let selectedTemplate = coordinator.templateStore.templates.first {
+            $0.id != TemplateStore.genericID
+        }
+        XCTAssertNotNil(selectedTemplate)
+        guard let selectedTemplate else { return }
+
+        XCTAssertEqual(controller.activeTemplate?.id, TemplateStore.genericID)
+
+        controller.setSelectedTemplate(selectedTemplate)
+        XCTAssertEqual(controller.activeTemplate?.id, selectedTemplate.id)
+
+        controller.generateNotes(sessionID: sessionID, settings: settings)
+        try? await Task.sleep(for: .milliseconds(500))
+
+        let savedNotes = await coordinator.sessionRepository.loadNotes(sessionID: sessionID)
+        XCTAssertEqual(savedNotes?.template.id, selectedTemplate.id)
+    }
+
     func testCleanupProgressMapsCorrectly() async {
         let (root, _) = makeTempDirs()
         let (controller, coordinator) = makeController(root: root)

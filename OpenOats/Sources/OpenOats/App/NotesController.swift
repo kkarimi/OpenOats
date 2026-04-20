@@ -699,6 +699,17 @@ final class NotesController {
         coordinator.templateStore.templates
     }
 
+    /// The template that will be used for the next notes generation in the current session.
+    var activeTemplate: MeetingTemplate? {
+        state.selectedTemplate
+            ?? coordinator.templateStore.template(for: TemplateStore.genericID)
+            ?? TemplateStore.builtInTemplates.first
+    }
+
+    func setSelectedTemplate(_ template: MeetingTemplate) {
+        state.selectedTemplate = template
+    }
+
     /// Notes engine error for display (when not yet mapped to status).
     var notesEngineError: String? {
         coordinator.notesEngine.error

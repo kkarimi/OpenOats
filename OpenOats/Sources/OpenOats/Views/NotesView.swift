@@ -1392,6 +1392,33 @@ struct NotesView: View {
     @ViewBuilder
     private func notesToolbarActions(controller: NotesController, state: NotesState) -> some View {
         if let notes = state.loadedNotes {
+            templateMenu(
+                controller: controller,
+                selectedTemplateID: notes.template.id,
+                selectedTemplateName: notes.template.name,
+                selectedTemplateIcon: notes.template.icon,
+                regenerateOnSelection: true
+            )
+            .disabled(controller.isAnyGenerationInProgress)
+            .help(
+                controller.isAnyGenerationInProgress
+                    ? "Generating notes for \"\(controller.generatingSessionName)\"..."
+                    : "Click to regenerate, or pick a different template"
+            )
+        }
+
+        imageInsertMenu(controller: controller, state: state)
+    }
+
+    @ViewBuilder
+    private func templateMenu(
+        controller: NotesController,
+        selectedTemplateID: UUID,
+        selectedTemplateName: String,
+        selectedTemplateIcon: String,
+        regenerateOnSelection: Bool
+    ) -> some View {
+        if regenerateOnSelection {
             Menu {
                 ForEach(controller.availableTemplates) { template in
                     Button {
@@ -1399,10 +1426,10 @@ struct NotesView: View {
                     } label: {
                         Label(template.name, systemImage: template.icon)
                     }
-                    .disabled(notes.template.id == template.id)
+                    .disabled(selectedTemplateID == template.id)
                 }
             } label: {
-                Label(notes.template.name, systemImage: notes.template.icon)
+                Label(selectedTemplateName, systemImage: selectedTemplateIcon)
                     .font(.system(size: 12))
             } primaryAction: {
                 controller.regenerateNotes(settings: settings)
@@ -1410,13 +1437,25 @@ struct NotesView: View {
             .menuStyle(.button)
             .buttonStyle(.bordered)
             .fixedSize()
-            .disabled(controller.isAnyGenerationInProgress)
-            .help(controller.isAnyGenerationInProgress
-                ? "Generating notes for \"\(controller.generatingSessionName)\"..."
-                : "Click to regenerate, or pick a different template")
+        } else {
+            Menu {
+                ForEach(controller.availableTemplates) { template in
+                    Button {
+                        controller.setSelectedTemplate(template)
+                    } label: {
+                        Label(template.name, systemImage: template.icon)
+                    }
+                    .disabled(selectedTemplateID == template.id)
+                }
+            } label: {
+                Label(selectedTemplateName, systemImage: selectedTemplateIcon)
+                    .font(.system(size: 12))
+            }
+            .menuStyle(.button)
+            .buttonStyle(.bordered)
+            .fixedSize()
+            .help("Choose the note template for the first generation")
         }
-
-        imageInsertMenu(controller: controller, state: state)
     }
 
     @ViewBuilder
@@ -1625,36 +1664,85 @@ struct NotesView: View {
     }
 
     private func notesEmptyState(controller: NotesController, state: NotesState, sessionID: String) -> some View {
-        ContentUnavailableView {
-            Label("Generate Notes", systemImage: "sparkles")
-        } description: {
-            Text("Summarize this transcript into structured meeting notes.")
-        } actions: {
-            if case .error(let error) = state.notesGenerationStatus {
-                Text(error)
-                    .foregroundStyle(.red)
-                    .font(.system(size: 12))
-            }
+        ScrollView {
+            VStack(spacing: 18) {
+                Spacer(minLength: 72)
 
-            VStack(spacing: 8) {
-                Button {
-                    controller.generateNotes(sessionID: sessionID, settings: settings)
-                } label: {
-                    Label("Generate Notes", systemImage: "sparkles")
+                Image(systemName: "sparkles")
+                    .font(.system(size: 26, weight: .light))
+                    .foregroundStyle(.tertiary)
+
+                VStack(spacing: 6) {
+                    Text("Generate Notes")
+                        .font(.system(size: 22, weight: .semibold))
+                    Text("Summarize this transcript into structured meeting notes.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
                 }
-                .buttonStyle(OpenOatsProminentButtonStyle())
-                .disabled(state.loadedTranscript.isEmpty || controller.isAnyGenerationInProgress)
-                .accessibilityIdentifier("notes.generateButton")
 
-                if controller.isAnyGenerationInProgress {
-                    HStack(spacing: 6) {
-                        ProgressView().controlSize(.mini)
-                        Text("Generating notes for \"\(controller.generatingSessionName)\"...")
+                if case .error(let error) = state.notesGenerationStatus {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text(error)
                             .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
+                    }
+                    .foregroundStyle(.red)
+                }
+
+                VStack(spacing: 10) {
+                    if let activeTemplate = controller.activeTemplate {
+                        HStack(spacing: 10) {
+                            Text("Template")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.secondary)
+                            Spacer(minLength: 0)
+                            templateMenu(
+                                controller: controller,
+                                selectedTemplateID: activeTemplate.id,
+                                selectedTemplateName: activeTemplate.name,
+                                selectedTemplateIcon: activeTemplate.icon,
+                                regenerateOnSelection: false
+                            )
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(nsColor: .controlBackgroundColor))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .strokeBorder(.quaternary, lineWidth: 1)
+                        )
+                    }
+
+                    Button {
+                        controller.generateNotes(sessionID: sessionID, settings: settings)
+                    } label: {
+                        Label("Generate Notes", systemImage: "sparkles")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(OpenOatsProminentButtonStyle())
+                    .disabled(state.loadedTranscript.isEmpty || controller.isAnyGenerationInProgress)
+                    .accessibilityIdentifier("notes.generateButton")
+
+                    if controller.isAnyGenerationInProgress {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.mini)
+                            Text("Generating notes for \"\(controller.generatingSessionName)\"...")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
+                .frame(maxWidth: 300)
+
+                Spacer()
             }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 24)
         }
     }
 
