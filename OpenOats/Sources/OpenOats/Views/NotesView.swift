@@ -1786,21 +1786,41 @@ struct NotesView: View {
     }
 
     private func notesEmptyState(controller: NotesController, state: NotesState, sessionID: String) -> some View {
-        ScrollView {
-            VStack(spacing: 18) {
-                Spacer(minLength: 72)
+        let isEmbeddedMeetingFamilyDetail = state.selectedMeetingFamily != nil
 
-                Image(systemName: "sparkles")
-                    .font(.system(size: 26, weight: .light))
-                    .foregroundStyle(.tertiary)
+        return ScrollView {
+            VStack(spacing: isEmbeddedMeetingFamilyDetail ? 16 : 18) {
+                if isEmbeddedMeetingFamilyDetail {
+                    HStack(spacing: 10) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 16, weight: .light))
+                            .foregroundStyle(.tertiary)
 
-                VStack(spacing: 6) {
-                    Text("Generate Notes")
-                        .font(.system(size: 22, weight: .semibold))
-                    Text("Summarize this transcript into structured meeting notes.")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Generate Notes")
+                                .font(.system(size: 18, weight: .semibold))
+                            Text("Summarize this transcript into structured meeting notes.")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(maxWidth: 300, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Spacer(minLength: 72)
+
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 26, weight: .light))
+                        .foregroundStyle(.tertiary)
+
+                    VStack(spacing: 6) {
+                        Text("Generate Notes")
+                            .font(.system(size: 22, weight: .semibold))
+                        Text("Summarize this transcript into structured meeting notes.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
                 }
 
                 if case .error(let error) = state.notesGenerationStatus {
@@ -1810,6 +1830,7 @@ struct NotesView: View {
                         Text(error)
                             .font(.system(size: 12))
                     }
+                    .frame(maxWidth: isEmbeddedMeetingFamilyDetail ? 300 : .infinity, alignment: .leading)
                     .foregroundStyle(.red)
                 }
 
@@ -1871,10 +1892,13 @@ struct NotesView: View {
                 }
                 .frame(maxWidth: 300)
 
-                Spacer()
+                if !isEmbeddedMeetingFamilyDetail {
+                    Spacer()
+                }
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: isEmbeddedMeetingFamilyDetail ? .topLeading : .center)
             .padding(.horizontal, 24)
+            .padding(.vertical, isEmbeddedMeetingFamilyDetail ? 24 : 0)
         }
     }
 
