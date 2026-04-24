@@ -275,6 +275,10 @@ struct IdleHomeDashboardView: View {
 
                 folderColorGrid(selectedColor: $newFolderColor)
 
+                Label("Future meetings like this will use this folder by default.", systemImage: "arrow.triangle.branch")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+
                 HStack {
                     Spacer()
 
