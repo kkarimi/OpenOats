@@ -547,9 +547,7 @@ private struct ComingUpEventRow: View {
             }
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: preferredFolderPath == nil ? "folder" : "folder.fill")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(folderColor(for: preferredFolderPath))
+                folderGlyphBadge(for: preferredFolderPath)
 
                 if isFolderHovering {
                     Text(folderDisplayName(for: preferredFolderPath))
@@ -568,7 +566,7 @@ private struct ComingUpEventRow: View {
                     .fill(isFolderHovering ? Color.primary.opacity(0.05) : .clear)
             )
         }
-        .menuStyle(.borderlessButton)
+        .menuStyle(.button)
         .menuIndicator(.hidden)
         .buttonStyle(.plain)
         .contentShape(RoundedRectangle(cornerRadius: 8))
@@ -631,6 +629,21 @@ private struct ComingUpEventRow: View {
 
     private func folderColor(for folderPath: String?) -> Color {
         folderColor(for: folderDefinition(for: folderPath)?.color ?? .gray)
+    }
+
+    @ViewBuilder
+    private func folderGlyphBadge(for folderPath: String?) -> some View {
+        let color = folderColor(for: folderPath)
+
+        ZStack {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(color.opacity(0.14))
+                .frame(width: 24, height: 24)
+
+            Image(systemName: folderPath == nil ? "folder" : "folder.fill")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(color)
+        }
     }
 
     private func folderColor(for color: NotesFolderColor) -> Color {
