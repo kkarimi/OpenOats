@@ -898,11 +898,7 @@ struct UpcomingMeetingReadiness: Equatable {
     let folderPath: String?
 
     var summaryText: String {
-        var parts = [historySummaryText]
-        if let folderSummaryText {
-            parts.append(folderSummaryText)
-        }
-        return parts.joined(separator: "  •  ")
+        historySummaryText
     }
 
     var historySummaryText: String {
@@ -915,12 +911,6 @@ struct UpcomingMeetingReadiness: Equatable {
             return "\(historyCount) previous"
         }
     }
-
-    var folderSummaryText: String? {
-        guard let folderPath else { return nil }
-        return "Folder: \(folderPath.replacingOccurrences(of: "/", with: " › "))"
-    }
-
     @MainActor
     static func resolve(
         for event: CalendarEvent,

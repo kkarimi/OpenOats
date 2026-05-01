@@ -87,7 +87,7 @@ final class IdleHomeDashboardReadinessTests: XCTestCase {
 
         XCTAssertEqual(readiness.historyCount, 2)
         XCTAssertEqual(readiness.folderPath, "Work/Standups")
-        XCTAssertEqual(readiness.summaryText, "2 previous  •  Folder: Work › Standups")
+        XCTAssertEqual(readiness.summaryText, "2 previous")
     }
 
     private func makeEvent(
